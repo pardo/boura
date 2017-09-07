@@ -1,0 +1,16 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+
+[dev-packages]
+ipython = "*"
+ipdb = "*"
+
+[packages]
+django = "*"
+django-common-helpers = "*"
+pillow = "*"
+requests = "*"
+django-rq = "*"
+rq-scheduler = "*"
+sorl-thumbnail = "*"

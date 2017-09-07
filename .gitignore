@@ -99,3 +99,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# random files
+db.sqlite3
+media_root

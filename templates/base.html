@@ -1,0 +1,73 @@
+{% load thumbnail %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title></title>
+  <script src="/static/jquery-3.2.1.min.js"></script>
+  <script src="/static/main.js"></script>
+  <style>
+    html, body {
+      padding: 0;
+      margin: 0;
+    }
+    canvas { width: 100vw; }
+    #image { display: none; }
+  </style>
+
+</head>
+<body>
+<img src="{{ upload.get_thumbnail.url }}">
+<img id="image" src="{{ upload.image.url }}">
+<script>
+    ENTITIES = {{ entities|safe }};
+    var img = document.getElementById("image");
+    function do_from(ctx, start, end, close, landmark_68) {
+        ctx.beginPath();
+        var point = landmark_68[start];
+        ctx.moveTo(point[0], point[1]);
+        for (var j=start; j <= end; j++) {
+            point = landmark_68[j];
+            ctx.lineTo(point[0], point[1]);
+        }
+        if (close) {
+            point = landmark_68[start];
+            ctx.lineTo(point[0], point[1]);
+        }
+        ctx.stroke();
+    }
+
+    img.onload = function(){
+        var canvas = document.createElement('canvas');
+        canvas.id = 'canvas';
+        canvas.width  = img.width;
+        canvas.height = img.height;
+        document.body.appendChild(canvas);
+        ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'red';
+        ctx.drawImage(img, 0, 0);
+
+        ctx.lineWidth = "3";
+        for (var i = 0; i < ENTITIES.length; i ++ ) {
+            var entity = ENTITIES[i];
+            ctx.beginPath();
+            ctx.strokeStyle = 'red';
+            ctx.strokeRect(entity.left, entity.top, entity.right-entity.left, entity.bottom-entity.top);
+            ctx.font = parseInt((entity.right-entity.left)/7)+"px Arial";
+            ctx.fillText(entity.type, entity.left, entity.top);
+            ctx.strokeStyle = 'green';
+            if (entity.landmark_68) {
+                do_from(ctx, 0, 16, false, entity.landmark_68);
+                do_from(ctx, 17, 21, false, entity.landmark_68);
+                do_from(ctx, 22, 26, false, entity.landmark_68);
+                do_from(ctx, 27, 30, false, entity.landmark_68);
+                do_from(ctx, 31, 35, false, entity.landmark_68);
+                do_from(ctx, 36, 41, true, entity.landmark_68);
+                do_from(ctx, 42, 47, true, entity.landmark_68);
+                do_from(ctx, 48, 67, true, entity.landmark_68);
+            }
+        }
+    };
+</script>
+</body>
+</html>
