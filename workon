@@ -1,0 +1,20 @@
+#!/bin/bash
+screen -dmS boura
+screen -S boura -X screen
+screen -S boura -X screen
+screen -S boura -X screen
+
+screen -S boura -p 0 -X title docker_compose
+screen -S boura -p 0 -X stuff "docker-compose up -d; while [ yayo ]; do docker-compose up -d; docker-compose logs -f; done^M"
+
+screen -S boura -p 1 -X title rq_worker
+screen -S boura -p 1 -X stuff "sleep 20s; pipenv run python manage.py rqworker^M"
+
+screen -S boura -p 2 -X title server
+screen -S boura -p 2 -X stuff "pipenv run python manage.py runserver^M"
+
+screen -S boura -p 3 -X title shell
+screen -S boura -p 3 -X stuff "pipenv shell^M"
+
+sleep 1s && screen -S boura -X select 2 &
+screen -r boura

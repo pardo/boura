@@ -24,5 +24,5 @@ urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^upload/', upload_views.upload_image),
     url(r'^django-rq/', include('django_rq.urls')),
-    url(r'^$', upload_views.upload_view),
+    url(r'^$', upload_views.upload_view, name="view_upload"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

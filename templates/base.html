@@ -10,64 +10,107 @@
     html, body {
       padding: 0;
       margin: 0;
+      max-width: 100vw;
+      max-height: 100vh;
+      display: flex;
+      overflow: hidden;
+      background-color: rgb(32, 32, 32)
     }
-    canvas { width: 100vw; }
-    #image { display: none; }
+    #container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100vw;
+        height: 100vh;
+    }
+    canvas { width: 0; height: 0; }
+    #image {
+        display: none;
+    }
   </style>
 
 </head>
 <body>
-<img src="{{ upload.get_thumbnail.url }}">
-<img id="image" src="{{ upload.image.url }}">
+    <img id="image" src="{{ upload.image.url }}">
+    <div id="container"></div>
 <script>
-    ENTITIES = {{ entities|safe }};
-    var img = document.getElementById("image");
+    ENTITIES = {{ entities|safe }}
+    var img = document.getElementById("image")
+    var container = document.getElementById("container")
     function do_from(ctx, start, end, close, landmark_68) {
-        ctx.beginPath();
-        var point = landmark_68[start];
-        ctx.moveTo(point[0], point[1]);
+        ctx.beginPath()
+        var point = landmark_68[start]
+        ctx.moveTo(point[0], point[1])
         for (var j=start; j <= end; j++) {
-            point = landmark_68[j];
-            ctx.lineTo(point[0], point[1]);
+            point = landmark_68[j]
+            ctx.lineTo(point[0], point[1])
         }
         if (close) {
-            point = landmark_68[start];
-            ctx.lineTo(point[0], point[1]);
+            point = landmark_68[start]
+            ctx.lineTo(point[0], point[1])
         }
-        ctx.stroke();
+        ctx.stroke()
     }
 
     img.onload = function(){
-        var canvas = document.createElement('canvas');
-        canvas.id = 'canvas';
-        canvas.width  = img.width;
-        canvas.height = img.height;
-        document.body.appendChild(canvas);
-        ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'red';
-        ctx.drawImage(img, 0, 0);
+        var canvas = document.createElement('canvas')
+        canvas.id = 'canvas'
+        canvas.width  = img.width
+        canvas.height = img.height
+        container.appendChild(canvas)
+        ctx = canvas.getContext('2d')
+        ctx.fillStyle = 'red'
+        ctx.drawImage(img, 0, 0)
 
-        ctx.lineWidth = "3";
+        ctx.lineWidth = Math.max(
+            Math.max(img.width, img.height) * 0.003, 4
+        )
+        console.log(ctx.lineWidth)
         for (var i = 0; i < ENTITIES.length; i ++ ) {
-            var entity = ENTITIES[i];
-            ctx.beginPath();
-            ctx.strokeStyle = 'red';
-            ctx.strokeRect(entity.left, entity.top, entity.right-entity.left, entity.bottom-entity.top);
-            ctx.font = parseInt((entity.right-entity.left)/7)+"px Arial";
-            ctx.fillText(entity.type, entity.left, entity.top);
-            ctx.strokeStyle = 'green';
+            var entity = ENTITIES[i]
+            ctx.beginPath()
+            ctx.strokeStyle = 'red'
+            ctx.strokeRect(entity.left, entity.top, entity.right-entity.left, entity.bottom-entity.top)
+            ctx.font = parseInt((entity.right-entity.left)/7)+"px Arial"
+            ctx.fillText(entity.type, entity.left, entity.top)
             if (entity.landmark_68) {
-                do_from(ctx, 0, 16, false, entity.landmark_68);
-                do_from(ctx, 17, 21, false, entity.landmark_68);
-                do_from(ctx, 22, 26, false, entity.landmark_68);
-                do_from(ctx, 27, 30, false, entity.landmark_68);
-                do_from(ctx, 31, 35, false, entity.landmark_68);
-                do_from(ctx, 36, 41, true, entity.landmark_68);
-                do_from(ctx, 42, 47, true, entity.landmark_68);
-                do_from(ctx, 48, 67, true, entity.landmark_68);
+                // face contour
+                ctx.strokeStyle = 'green'
+                do_from(ctx, 0, 16, false, entity.landmark_68)
+                do_from(ctx, 17, 21, false, entity.landmark_68)
+                do_from(ctx, 22, 26, false, entity.landmark_68)
+                do_from(ctx, 27, 30, false, entity.landmark_68)
+                do_from(ctx, 31, 35, false, entity.landmark_68)
+                // persons right eye
+                ctx.strokeStyle = 'blue'
+                do_from(ctx, 36, 41, true, entity.landmark_68)
+                // persons left eye
+                ctx.strokeStyle = 'cyan'
+                do_from(ctx, 42, 47, true, entity.landmark_68)
+                // lips
+                ctx.strokeStyle = 'yellow'
+                do_from(ctx, 48, 67, true, entity.landmark_68)
             }
         }
-    };
+
+        function resize() {
+            var canvasRatio = canvas.height / canvas.width
+            var windowRatio = window.innerHeight / window.innerWidth
+            var width
+            var height
+            if (windowRatio < canvasRatio) {
+                height = window.innerHeight
+                width = height / canvasRatio
+            } else {
+                width = window.innerWidth
+                height = width * canvasRatio
+            }
+            canvas.style.width = width + 'px'
+            canvas.style.height = height + 'px'
+        }
+        setTimeout(resize, 100)
+        window.addEventListener('resize', resize, false)
+    }
 </script>
 </body>
 </html>

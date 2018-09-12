@@ -3,13 +3,13 @@ services:
   redis:
     image: redis
     ports:
-      - "localhost:6379:6379"
+      - "0.0.0.0:6379:6379"
   dlib_service:
     image: unpardos/dlib_service
     ports:
-      - "localhost:8080:8080"
+      - "0.0.0.0:8080:8080"
   darknet_service:
     image: unpardos/darknet_service
     ports:
-      - "localhost:3000:3000"
+      - "0.0.0.0:3000:3000"
 

@@ -20,12 +20,19 @@ def upload_image(request):
                 process_upload_with_dlib.delay(upload.id)
             if request.POST.get("darknet"):
                 process_upload_with_darknet.delay(upload.id)
-
-    return HttpResponse("ok", status=200)
+    return HttpResponse(json.dumps({
+        "id": upload.id
+    }), content_type="application/json", status=200)
 
 
 def upload_view(request):
-    upload = Upload.objects.latest("id")
+    try:
+        if "upload" in request.GET:
+            upload = Upload.objects.get(id=request.GET.get("upload"))
+        else:
+            upload = Upload.objects.latest("id")
+    except:
+        return HttpResponse(status=404)
 
     entities = []
     for e in upload.entity_set.all():

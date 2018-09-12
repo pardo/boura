@@ -39,13 +39,16 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 ]
 
-
+# third party
 INSTALLED_APPS += [
     "django_common",
     "django_rq",
     "sorl.thumbnail",
+    "inline_actions"
+]
 
-    # app APPS
+# System apps
+INSTALLED_APPS += [
     "uploads",
     "identity"
 ]
