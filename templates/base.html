@@ -41,8 +41,11 @@
         ctx.beginPath()
         var point = landmark_68[start]
         ctx.moveTo(point[0], point[1])
+        var avg = [0, 0]
         for (var j=start; j <= end; j++) {
             point = landmark_68[j]
+            avg[0] += point[0]
+            avg[1] += point[1]
             ctx.lineTo(point[0], point[1])
         }
         if (close) {
@@ -50,8 +53,14 @@
             ctx.lineTo(point[0], point[1])
         }
         ctx.stroke()
+        avg[0] = avg[0] / (end - start + 1)
+        avg[1] = avg[1] / (end - start + 1)
+        ctx.fillRect(avg[0], avg[1], 4, 4)
     }
 
+    function distanceXY (x1, y1, x2, y2) {
+        return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2))
+    }
     img.onload = function(){
         var canvas = document.createElement('canvas')
         canvas.id = 'canvas'
@@ -72,14 +81,74 @@
             ctx.strokeStyle = 'red'
             ctx.strokeRect(entity.left, entity.top, entity.right-entity.left, entity.bottom-entity.top)
             ctx.font = parseInt((entity.right-entity.left)/7)+"px Arial"
-            ctx.fillText(entity.type, entity.left, entity.top)
+            
+            
+            ctx.fillRect(entity.landmark_68[27][0], entity.landmark_68[27][1], 9, 9)
+            ctx.fillRect(entity.landmark_68[30][0], entity.landmark_68[30][1], 9, 9)
+            ctx.fillRect(entity.landmark_68[33][0], entity.landmark_68[33][1], 9, 9)
+            
+            var angle = Math.atan2(
+                entity.landmark_68[27][1] - entity.landmark_68[30][1],
+                entity.landmark_68[27][0] - entity.landmark_68[30][0]
+            )
+            if (angle < 0) { angle += Math.PI * 2 }
+            var noseAngleRad = angle
+            var noseAngleDeg = parseInt(angle * 57.29577951308232)
+            
+            var angle = Math.atan2(
+                entity.landmark_68[27][1] - entity.landmark_68[33][1],
+                entity.landmark_68[27][0] - entity.landmark_68[33][0]
+            )
+            if (angle < 0) { angle += Math.PI * 2 }
+            var noseToBottomAngleDeg = parseInt(angle * 57.29577951308232)
+            
+            var offset = 270 - noseToBottomAngleDeg
+            // entity.type + "Angle" + angleDeg,
+            ctx.fillText(
+                "a " + noseAngleDeg + " b " + noseToBottomAngleDeg + " c " + (offset + noseAngleDeg),
+                entity.left,
+                entity.top
+            )
+
             if (entity.landmark_68) {
                 // face contour
                 ctx.strokeStyle = 'green'
                 do_from(ctx, 0, 16, false, entity.landmark_68)
+                var middle = [
+                    (entity.landmark_68[0][0] + entity.landmark_68[16][0]) / 2,
+                    (entity.landmark_68[0][1] + entity.landmark_68[16][1]) / 2,
+                ]
+                ctx.fillRect(middle[0], middle[1], 9, 9)
+
+                var ox = middle[0]
+                var oy = middle[1]
+                var theta = Math.PI
+
+                var distance = - distanceXY(
+                    entity.landmark_68[27][0], entity.landmark_68[27][1],
+                    entity.landmark_68[30][1], entity.landmark_68[30][1]
+                )
+                var rotated_points = entity.landmark_68.map(function(point){
+                    var px = point[0]
+                    var py = point[1]
+                    return [
+                        // rotate 180 and translate following nose angle
+                        // x
+                        (Math.cos(theta) * (px-ox) - Math.sin(theta) * (py-oy) + ox),
+                        // y
+                        (Math.sin(theta) * (px-ox) + Math.cos(theta) * (py-oy) + oy)
+                    ]
+                }) 
+                do_from(ctx, 0, 4, false, rotated_points)
+                do_from(ctx, 12, 16, false, rotated_points)
+
+                ctx.strokeStyle = 'blue'
+
                 do_from(ctx, 17, 21, false, entity.landmark_68)
                 do_from(ctx, 22, 26, false, entity.landmark_68)
+                // nose top
                 do_from(ctx, 27, 30, false, entity.landmark_68)
+                // nose down
                 do_from(ctx, 31, 35, false, entity.landmark_68)
                 // persons right eye
                 ctx.strokeStyle = 'blue'

@@ -28,7 +28,6 @@ class IdentityMatch(models.Model):
 
 class Identity(models.Model):
     name = models.CharField(max_length=100, default="", blank=True)
-    # matchs = models.ManyToManyField("uploads.Entity", related_name="identity_matchs_set", blank=True)
     excluded = models.ManyToManyField("uploads.Entity", related_name="identity_excluded_set", blank=True)
     identity = models.ManyToManyField("uploads.Entity", related_name="identity_source_set", blank=True)
 
@@ -40,7 +39,7 @@ class Identity(models.Model):
 
         excluded_ids = list(self.matchs.values_list("entity_id", flat=True))
         excluded_ids += list(self.excluded.values_list("id", flat=True))
-        excluded_ids += list(self.identity.values_list("id", flat=True))
+        # excluded_ids += list(self.identity.values_list("id", flat=True))
 
         entities = Entity.objects\
             .filter(type="face")\

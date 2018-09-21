@@ -5,7 +5,7 @@ from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
 
 from sorl.thumbnail.admin import AdminImageMixin
-from uploads.models import Upload, Entity
+from uploads.models import Upload, Entity, Pardo
 from inline_actions.admin import InlineActionsMixin, InlineActionsModelAdminMixin
 
 
@@ -79,7 +79,8 @@ class UploadAdmin(AdminImageMixin, InlineActionsModelAdminMixin, admin.ModelAdmi
     inline_actions = [
         "inline_create_crop",
         "inline_process_darknet",
-        "inline_process_dlib"
+        "inline_process_dlib",
+        "pardofy"
     ]
     
     def view_url(self, obj):
@@ -133,13 +134,16 @@ class UploadAdmin(AdminImageMixin, InlineActionsModelAdminMixin, admin.ModelAdmi
         process_upload_with_dlib.delay(obj.id, True)
     inline_process_dlib.short_description = "Process with dlib"
 
+    def pardofy(self, request, obj, parent_obj=None):
+        obj.pardofy()
 
 
-
-class EntityAdmin(AdminImageMixin, admin.ModelAdmin):
+class EntityAdmin(AdminImageMixin, InlineActionsModelAdminMixin, admin.ModelAdmin):
     list_filter = ["type"]
     list_display = [
         "type",
+        "get_identities",
+        "render_inline_actions",
         "get_image",
         "view_url",
     ]
@@ -147,10 +151,13 @@ class EntityAdmin(AdminImageMixin, admin.ModelAdmin):
         "type",
         "score",
         "get_admin_change_url",
+        "render_inline_actions",
         "get_image",
         "view_url",
     ]
     readonly_fields = [
+        "type",
+        "score",
         "get_image",
         "view_url",
         "get_admin_change_url"
@@ -159,11 +166,26 @@ class EntityAdmin(AdminImageMixin, admin.ModelAdmin):
         "crop",
         "delete_with_images"
     ]
+    inline_action = []
+
+    def get_inline_actions(self, request, obj=None):
+        actions = []
+        if obj.type == "face":
+            actions.append('inline_create_identity')
+        return actions
+
+    # fields
+    def get_identities(self, obj):
+        identities = ""
+        for i in obj.get_identities():
+            identities += '<a href="%s">%s<a><br>' % (i.get_admin_change_url(), i.name)
+        return mark_safe(identities)
 
     def get_admin_change_url(self, obj):
         return mark_safe('<a href="%s">Change Upload<a>' % (
             obj.upload.get_admin_change_url() 
         ))
+    get_admin_change_url.short_description = "Upload Admin"
 
     def view_url(self, obj):
         return mark_safe('<a target="_blank" href="%s"><img style="max-width: 150px" src="%s"><a>' % (
@@ -174,8 +196,9 @@ class EntityAdmin(AdminImageMixin, admin.ModelAdmin):
     def get_image(self, obj):
         if obj.has_image():
             return mark_safe('<img style="max-width: 150px" src="%s">' % obj.image.url)
+    get_image.short_description = "Image"
 
-    # actions 
+    # actions
     def delete_with_images(self, request, queryset):
         for e in queryset:
             e.image.delete()
@@ -186,5 +209,21 @@ class EntityAdmin(AdminImageMixin, admin.ModelAdmin):
             entity.crop()
     crop.short_description = "Crop entities"
 
+    # inline actions
+    def inline_create_identity(self, request, obj, parent_obj=None):
+        from identity.models import Identity
+        i = Identity()
+        i.save()
+        i.identity.add(obj)
+        return HttpResponseRedirect(i.get_admin_change_url())
+    inline_create_identity.short_description = "Create Identity"
+
+
+class PardoAdmin(AdminImageMixin, InlineActionsModelAdminMixin, admin.ModelAdmin):
+    fields = [
+        "image",
+    ]
+
+admin.site.register(Pardo, PardoAdmin)
 admin.site.register(Upload, UploadAdmin)
 admin.site.register(Entity, EntityAdmin)

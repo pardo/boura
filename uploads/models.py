@@ -1,4 +1,4 @@
-
+import os
 import requests
 import math
 import datetime
@@ -90,6 +90,77 @@ class Upload(models.Model):
     def get_view_url(self):
         return reverse("view_upload") + "?upload=%s" % self.id
 
+    def pardofy(self, save=False):
+        def distancePoints(p1, p2):
+            import math
+            return math.sqrt(math.pow(p1[0] - p2[0], 2) + math.pow(p1[1] - p2[1], 2))
+
+        def scale(a, s):
+            return map(lambda x: int(x*s), a)
+        faces = self.entity_set.filter(type="face")
+        if not faces.exists():
+            return
+
+        upload_im = Image.open(self.image.path)
+        
+        pardoObj = Pardo.objects.order_by("?")[0]
+        pardo = Image.open(pardoObj.image.path)
+        pardo_right_eye = pardoObj.get_right_eye_position()
+        pardo_left_eye = pardoObj.get_left_eye_position()
+        pardo_mouth = pardoObj.get_mouth_position()
+        pardos_eye_distance = distancePoints(pardo_right_eye, pardo_left_eye)
+        pardos_right_eye_to_mouth_distance = distancePoints(pardo_right_eye, pardo_mouth)
+
+        for face_entity in faces:
+            angle = face_entity.get_face_angle()
+            right_eye = face_entity.get_right_eye_position()
+            left_eye = face_entity.get_left_eye_position()
+            mouth = face_entity.get_mouth_position()
+            eye_distance = distancePoints(right_eye, left_eye)
+            mouse_to_eye_distance = distancePoints(right_eye, mouth)
+            right_eye = scale(right_eye, 1)
+            # this will be used to scale pardo image to fit the face eye distance
+            eye_distance_scale = eye_distance / pardos_eye_distance
+            mouth_scale = mouse_to_eye_distance / (pardos_right_eye_to_mouth_distance * eye_distance_scale)
+
+            pardo_right_eye_scaled = scale(pardo_right_eye, eye_distance_scale)
+            pardo_resized_scale = scale(pardo.size, eye_distance_scale)
+            pardo_resized = pardo.resize(
+                pardo_resized_scale[:],
+                resample=Image.BILINEAR,
+            )
+            # resize the shape a bit on the Y axis so it matches the mouse position
+            pardo_resized_scale[1] = int(pardo_resized_scale[1] * mouth_scale)
+            pardo_right_eye_scaled[1] = int(pardo_right_eye_scaled[1] * mouth_scale)
+            pardo_resized = pardo.resize(
+                pardo_resized_scale[:],
+                resample=Image.BILINEAR,
+            )
+            pardo_rotated = pardo_resized.rotate(
+                -angle,
+                resample=Image.BILINEAR,
+                center=pardo_right_eye_scaled
+            )
+            paste_position = [
+                right_eye[0] - pardo_right_eye_scaled[0],
+                right_eye[1] - pardo_right_eye_scaled[1]
+            ]
+            if pardo_rotated.mode != "RGBA":
+                pardo_rotate_alpha = Image.new("L",  pardo_rotated.size, color=150)
+                upload_im.paste(pardo_rotated, paste_position, mask=pardo_rotate_alpha)
+            else:
+                upload_im.paste(pardo_rotated, paste_position, mask=pardo_rotated)
+        if save:
+            upload_path = os.path.split(upload_im.filename)
+            filename = os.path.join(
+                upload_path[0],
+                "pardofy-%s" % upload_path[1],
+            )
+            with open(filename, "w") as image_file:
+                upload_im.save(image_file, "JPEG")
+        else:
+            upload_im.show()
+
     def __str__(self):
         return "Upload %s" % self.id
 
@@ -107,38 +178,39 @@ class Entity(models.Model):
     left = models.PositiveIntegerField(default=0)
     meta = JSONField(default={}, blank=True)
 
-    @classmethod
-    def test(self):
-        for e in Entity.objects.all():
-            im = Image.open(e.image.path)
-            im_10 = im.resize((10, 10), Image.ANTIALIAS)
-            im_20 = im.resize((20, 20), Image.ANTIALIAS)
-            im_30 = im.resize((30, 30), Image.ANTIALIAS)
-            e.meta["histogram_10"] = im_10.histogram()
-            e.meta["histogram_20"] = im_20.histogram()
-            e.meta["histogram_30"] = im_30.histogram()
-            e.save()
-            print(e.id)
+    def get_identities(self):
+        from identity.models import Identity
+        return Identity.objects.filter(
+            id__in=self.identity_matchs_set.values_list("identity_id")
+        )
 
-    def test_2(self):
-        from identity.models import euclidean_distance
-        for e in Entity.objects.all():
-            print(self.id, e.id, euclidean_distance(self.meta["histogram_30"], e.meta["histogram_30"]))
+    def get_mouth_position(self):
+        mouth = self.meta["landmark_68"][48:68]
+        mouth_avg = reduce(lambda b, a: [a[0] + b[0], a[1] + b[1]], mouth)
+        mouth_avg[0] = mouth_avg[0] / 20.0
+        mouth_avg[1] = mouth_avg[1] / 20.0
+        return mouth_avg
 
-    def get_face_angle(self):
-        # keep in mind that is the right eye of the person
-        # so if you are looking at the image the right eye will be placed on the left
-        right_eye = self.meta["landmark_68"][36:42]
+    def get_left_eye_position(self):
         left_eye = self.meta["landmark_68"][42:48]
         left_eye_avg = reduce(lambda b, a: [a[0] + b[0], a[1] + b[1]], left_eye)
         left_eye_avg[0] = left_eye_avg[0] / 6.0
         left_eye_avg[1] = left_eye_avg[1] / 6.0
-
+        return left_eye_avg
+    
+    def get_right_eye_position(self):
+        right_eye = self.meta["landmark_68"][36:42]
         right_eye_avg = reduce(lambda b, a: [a[0] + b[0], a[1] + b[1]], right_eye)
         right_eye_avg[0] = right_eye_avg[0] / 6.0
         right_eye_avg[1] = right_eye_avg[1] / 6.0
-        angle = math.atan2(left_eye_avg[1] - right_eye_avg[1], left_eye_avg[0] - right_eye_avg[0])
+        return right_eye_avg
 
+    def get_face_angle(self):
+        # keep in mind that is the right eye of the person
+        # so if you are looking at the image the right eye will be placed on the left
+        left_eye_avg = self.get_left_eye_position()
+        right_eye_avg = self.get_right_eye_position()
+        angle = math.atan2(left_eye_avg[1] - right_eye_avg[1], left_eye_avg[0] - right_eye_avg[0])
         return math.degrees(angle)
 
     def has_image(self):
@@ -201,3 +273,87 @@ class Entity(models.Model):
 
     def __str__(self):
         return "Entity %s" % self.id
+
+
+
+class Pardo(models.Model):
+    """
+        this should be an image with only one face
+    """
+    date_added = models.DateTimeField(auto_now_add=True)
+    date_modified = models.DateTimeField(auto_now=True)
+    image = ImageField(upload_to='pardos/%Y-%m-%d/')
+    meta = JSONField(default={}, blank=True)
+
+    def get_mouth_position(self):
+        mouth = self.meta["landmark_68"][48:68]
+        mouth_avg = reduce(lambda b, a: [a[0] + b[0], a[1] + b[1]], mouth)
+        mouth_avg[0] = mouth_avg[0] / 20.0
+        mouth_avg[1] = mouth_avg[1] / 20.0
+        return mouth_avg
+
+    def get_left_eye_position(self):
+        left_eye = self.meta["landmark_68"][42:48]
+        left_eye_avg = reduce(lambda b, a: [a[0] + b[0], a[1] + b[1]], left_eye)
+        left_eye_avg[0] = left_eye_avg[0] / 6.0
+        left_eye_avg[1] = left_eye_avg[1] / 6.0
+        return left_eye_avg
+    
+    def get_right_eye_position(self):
+        right_eye = self.meta["landmark_68"][36:42]
+        right_eye_avg = reduce(lambda b, a: [a[0] + b[0], a[1] + b[1]], right_eye)
+        right_eye_avg[0] = right_eye_avg[0] / 6.0
+        right_eye_avg[1] = right_eye_avg[1] / 6.0
+        return right_eye_avg
+
+    def get_face_angle(self):
+        # keep in mind that is the right eye of the person
+        # so if you are looking at the image the right eye will be placed on the left
+        left_eye_avg = self.get_left_eye_position()
+        right_eye_avg = self.get_right_eye_position()
+        angle = math.atan2(left_eye_avg[1] - right_eye_avg[1], left_eye_avg[0] - right_eye_avg[0])
+        return math.degrees(angle)
+
+    def process_dlib(self):
+        im = Image.open(self.image.path)
+        files = {'photo': self.image.file }
+        if im.mode == "RGBA":
+            im = im.convert("RGB")
+        
+            image_file = BytesIO()
+            im.save(image_file, "JPEG")
+            image_file.seek(0)
+            # need to conver to RGB
+            files = {'photo': image_file }
+
+        r = requests.post(settings.DLIB_SERVICE_HOST + "/faces-descriptors", files=files)
+        response = r.json()
+
+        for re in response:
+            self.meta = {}
+            self.meta["top"] = re["top"]
+            self.meta["right"] = re["right"]
+            self.meta["bottom"] = re["bottom"]
+            self.meta["left"] = re["left"]
+            self.meta["landmark_68"] = re["landmark_68"]
+            self.meta["face_descriptor"] = re["face_descriptor"]
+
+        self.save()
+
+    def crop(self):
+        right_eye = self.get_right_eye_position()
+        left_eye = self.get_left_eye_position()
+        center = [
+            int(right_eye[0]), int(right_eye[1])
+        ]
+        im = Image.open(self.image.path)
+        region = im.rotate(
+            self.get_face_angle(),
+            center=center
+        )
+        image_file = BytesIO()
+        region.save(image_file, "PNG")
+        image_file.seek(0)
+        self.image.save(
+            "%s_%s.png" % (self.id, datetime.datetime.today().isoformat()), File(image_file)
+        )
