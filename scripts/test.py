@@ -49,7 +49,7 @@ def process_dlib(image):
     image_file.seek(0)
     # need to conver to RGB
     files = {'photo': image_file}
-    r = requests.post(DLIB_SERVICE_HOST + "/faces-descriptors", files=files)
+    r = requests.post(DLIB_SERVICE_HOST + "/faces-landmarks", files=files)
     return r.json()
 
 def distancePoints(p1, p2):
@@ -189,13 +189,13 @@ def blur_face_image(image, face_dlib_data):
     # face crop blured
     face_blur = image.crop(
         [left, top, right, bottom]
-    ).filter(ImageFilter.GaussianBlur(10))
+    ).filter(ImageFilter.GaussianBlur(20))
     # alpha blending blured
     face_blur_alpha = Image.new("L",  face_blur.size, color=0)
     face_blur_alpha_draw = ImageDraw.Draw(face_blur_alpha)
     face_blur_alpha_draw.polygon(
         translated_points,
-        fill=250
+        fill=220
     )
     face_blur_alpha = face_blur_alpha.filter(ImageFilter.GaussianBlur(10))
     image.paste(face_blur, [left, top], mask=face_blur_alpha)
@@ -268,7 +268,10 @@ def pardofy(filename, output_dir, pardos):
 def pardofy_cv(filename, output_dir, pardos):
     print("-"*99)
     print(filename)
-    upload_im = Image.open(filename)
+    try:
+        upload_im = Image.open(filename)
+    except OSError:
+        return print("Error with %s" % filename)
     faces_data = process_dlib(upload_im)
 
     if len(faces_data) == 0:
@@ -333,7 +336,10 @@ def pardofy_cv(filename, output_dir, pardos):
 
 def auto_pardo(input_folder_path, output_folder_path=None, add_alpha=True):
     if output_folder_path is None:
-        output_folder_path = os.path.join(input_folder_path, 'crops')
+        if add_alpha:
+            output_folder_path = os.path.join(input_folder_path, 'crops')
+        else:
+            output_folder_path = os.path.join(input_folder_path, 'crops_no_alpha')
         if not os.path.exists(output_folder_path):
             os.makedirs(output_folder_path)
     for filename in os.listdir(input_folder_path):
@@ -404,9 +410,7 @@ def seemless(src_path, dst_path, out_path):
     mask[mask.shape[0]-1][mask.shape[1]-1] = 255
 
     dst = cv2.imread(dst_path)
-    center = tuple(scale(dst.shape, 0.5))[:2]
-    output = cv2.seamlessClone(
-        src, dst, mask, center, cv2.NORMAL_CLONE
-    )
+    center = tuple(reversed(scale(src.shape[:2], 0.5)))
+    output = cv2.seamlessClone(src, dst, mask, center, cv2.NORMAL_CLONE)
     # Save result
     cv2.imwrite(out_path, output)
